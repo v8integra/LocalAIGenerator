@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' file:; media-src 'self' file:;" />
+  <title>Local AI Studio</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header id="toolbar">
+      <div id="toolbar-tasks"></div>
+      <button id="toolbar-add" title="Add task">+</button>
+    </header>
+
+    <main id="workspace">
+      <section id="left-panel">
+        <p class="empty-state">Select a task above to get started.</p>
+      </section>
+
+      <section id="right-panel"></section>
+    </main>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

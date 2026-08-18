@@ -1,0 +1,45 @@
+{
+  "name": "local-ai-studio",
+  "version": "0.1.0",
+  "description": "Desktop app for local image, video, and music generation without manual Python/CUDA setup.",
+  "main": "dist/main/main.js",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/copy-assets.js",
+    "start": "npm run build && electron .",
+    "watch": "tsc -p tsconfig.json --watch",
+    "detect-hw": "npm run build && node dist/main/hardware/detectHardware.js",
+    "setup-comfy-engine": "npm run build && node dist/main/comfyui/engineSetup.js",
+    "setup-audio-engine": "npm run build && node dist/main/audio/audioEngineSetup.js",
+    "test": "npm run build && node --test \"dist/**/*.test.js\"",
+    "package": "npm run build && electron-builder --win"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "electron": "^31.0.0",
+    "electron-builder": "^26.15.3",
+    "typescript": "^5.5.0"
+  },
+  "build": {
+    "appId": "com.localaistudio.app",
+    "productName": "Local AI Studio",
+    "asar": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "!dist/**/*.test.js",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": true
+    }
+  }
+}

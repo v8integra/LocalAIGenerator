@@ -139,8 +139,12 @@ export async function writeExtraModelPaths(engineDir: string, modelsDir: string)
   // scans for motion modules (confirmed in its own docs) — pointed at
   // the same flat directory as checkpoints, since our install pipeline
   // downloads everything there regardless of what kind of model it is.
+  // diffusion_models/text_encoders/vae are where the split-file families'
+  // UNETLoader/CLIPLoader/VAELoader nodes look (Z-Image, FLUX.2 Klein).
   const normalizedModelsDir = modelsDir.replace(/\\/g, "/");
-  const yaml = `local_ai_studio:\n  base_path: ${normalizedModelsDir}\n  checkpoints: .\n  animatediff_models: .\n`;
+  const yaml =
+    `local_ai_studio:\n  base_path: ${normalizedModelsDir}\n  checkpoints: .\n  animatediff_models: .\n` +
+    `  diffusion_models: .\n  text_encoders: .\n  vae: .\n`;
   await fs.writeFile(path.join(engineDir, "extra_model_paths.yaml"), yaml, "utf-8");
 }
 

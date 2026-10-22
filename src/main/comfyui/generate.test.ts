@@ -56,19 +56,21 @@ test("generates an image end to end and writes it to the output directory", asyn
   await server.close();
 });
 
-test("returns a clear not-implemented error for task types this module doesn't handle", async () => {
+test("returns a clear error for text-to-music with a model that isn't a ComfyUI music model", async () => {
   const server = new FakeComfyServer();
   const { url } = await server.listen();
   const outputDir = await tmpOutputDir();
 
-  const result = await generate("text-to-music", "musicgen-small", { prompt: "a cat" }, baseContext(url, outputDir));
+  try {
+    const result = await generate("text-to-music", "musicgen-small", { prompt: "a cat" }, baseContext(url, outputDir));
 
-  assert.equal(result.status, "error");
-  if (result.status === "error") {
-    assert.match(result.error, /not implemented yet/);
+    assert.equal(result.status, "error");
+    if (result.status === "error") {
+      assert.match(result.error, /isn't a ComfyUI music model/);
+    }
+  } finally {
+    await server.close();
   }
-
-  await server.close();
 });
 
 test("returns a clear error for image-to-image when no input-image staging is configured", async () => {

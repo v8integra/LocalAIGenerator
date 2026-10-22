@@ -6,6 +6,8 @@ import { generateAudio } from "./audioClient";
 export interface TextToMusicInputs {
   prompt: string;
   durationSeconds?: number;
+  /** ACE-Step only — MusicGen has no vocals and ignores this. Empty means instrumental. */
+  lyrics?: string;
 }
 
 export type GenerateMusicResult = { status: "success"; output_path: string } | { status: "error"; error: string };

@@ -1,6 +1,6 @@
 import * as fs from "fs/promises";
 import { ModelEntry } from "../registry/types";
-import { modelFilePath } from "../registry/modelPaths";
+import { componentFilePath, modelFilePath } from "../registry/modelPaths";
 import { downloadFile, DownloadProgress } from "./downloadFile";
 import { verifyChecksum } from "./verifyChecksum";
 import { createVenv, installDependencies, venvExists } from "./venvManager";
@@ -63,7 +63,16 @@ export async function installModel(entry: ModelEntry, options: InstallOptions): 
   const modelPath = modelFilePath(options.modelsDir, entry);
 
   try {
-    await downloadWithChecksumRetry(entry, modelPath, emit);
+    await downloadWithChecksumRetry(entry.id, entry.download_url, entry.checksum, modelPath, emit);
+
+    // Components are shared between entries by filename (see ModelComponent),
+    // so one that another entry already downloaded is reused as-is — a
+    // failed checksum deletes the file, so whatever is left passed it.
+    for (const component of entry.components ?? []) {
+      const componentPath = componentFilePath(options.modelsDir, component);
+      if (await fileExists(componentPath)) continue;
+      await downloadWithChecksumRetry(entry.id, component.download_url, component.checksum, componentPath, emit);
+    }
 
     emit("creating-venv");
     if (!(await venvExists(options.venvDir))) {
@@ -89,16 +98,18 @@ export async function installModel(entry: ModelEntry, options: InstallOptions): 
 }
 
 async function downloadWithChecksumRetry(
-  entry: ModelEntry,
+  modelId: string,
+  url: string,
+  checksum: string,
   destPath: string,
   emit: (phase: InstallPhase, detail?: string, downloadProgress?: DownloadProgress) => void
 ): Promise<void> {
   for (let attempt = 1; attempt <= MAX_DOWNLOAD_ATTEMPTS; attempt++) {
     emit("downloading");
-    await downloadFile(entry.download_url, destPath, (progress) => emit("downloading", undefined, progress));
+    await downloadFile(url, destPath, (progress) => emit("downloading", undefined, progress));
 
     emit("verifying");
-    const isValid = await verifyChecksum(destPath, entry.checksum);
+    const isValid = await verifyChecksum(destPath, checksum);
     if (isValid) return;
 
     await fs.rm(destPath, { force: true });
@@ -106,8 +117,17 @@ async function downloadWithChecksumRetry(
 
     if (attempt === MAX_DOWNLOAD_ATTEMPTS) {
       throw new Error(
-        `Checksum verification failed ${MAX_DOWNLOAD_ATTEMPTS} times for model "${entry.id}" — aborting install.`
+        `Checksum verification failed ${MAX_DOWNLOAD_ATTEMPTS} times for model "${modelId}" — aborting install.`
       );
     }
+  }
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
   }
 }

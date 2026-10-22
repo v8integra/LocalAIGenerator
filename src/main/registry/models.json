@@ -1,5 +1,63 @@
 [
   {
+    "id": "z-image-turbo",
+    "task": "text-to-image",
+    "label": "Z-Image Turbo",
+    "engine": "comfyui",
+    "workflow": "z-image",
+    "min_vram_gb": 8,
+    "recommended_vram_gb": 12,
+    "os_support": ["windows", "mac", "linux"],
+    "disk_gb": 12,
+    "content_policy": "moderate",
+    "download_url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/diffusion_models/z_image_turbo_int8_convrot.safetensors",
+    "checksum": "sha256:be517ebd47c912a5626a588e1aeea43e6be4a43c0cdcd2b48a2a780d9f358635",
+    "components": [
+      {
+        "role": "text_encoder",
+        "download_url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b_fp8_mixed.safetensors",
+        "checksum": "sha256:72450b19758172c5a7273cf7de729d1c17e7f434a104a00167624cba94f68f15"
+      },
+      {
+        "role": "vae",
+        "download_url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors",
+        "checksum": "sha256:afc8e28272cd15db3919bacdb6918ce9c1ed22e96cb12c4d5ed0fba823529e38"
+      }
+    ],
+    "quality_tier": 6,
+    "is_default_candidate": true,
+    "sampling_preset": { "steps": 8, "cfg": 1.0, "sampler_name": "res_multistep", "scheduler": "simple", "width": 1024, "height": 1024 }
+  },
+  {
+    "id": "flux2-klein-4b",
+    "task": "text-to-image",
+    "label": "FLUX.2 Klein 4B",
+    "engine": "comfyui",
+    "workflow": "flux2-klein",
+    "min_vram_gb": 6,
+    "recommended_vram_gb": 8,
+    "os_support": ["windows", "mac", "linux"],
+    "disk_gb": 10,
+    "content_policy": "moderate",
+    "download_url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-4b-fp8/resolve/main/flux-2-klein-4b-fp8.safetensors",
+    "checksum": "sha256:97ed34fe0567e436200f2faee3939b88f2b5d99f8af2a4dc16532c4245c0ccb6",
+    "components": [
+      {
+        "role": "text_encoder",
+        "download_url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b_fp8_mixed.safetensors",
+        "checksum": "sha256:72450b19758172c5a7273cf7de729d1c17e7f434a104a00167624cba94f68f15"
+      },
+      {
+        "role": "vae",
+        "download_url": "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors",
+        "checksum": "sha256:d64f3a68e1cc4f9f4e29b6e0da38a0204fe9a49f2d4053f0ec1fa1ca02f9c4b5"
+      }
+    ],
+    "quality_tier": 5,
+    "is_default_candidate": true,
+    "sampling_preset": { "steps": 4, "cfg": 1.0, "sampler_name": "euler", "width": 1024, "height": 1024 }
+  },
+  {
     "id": "sdxl-turbo",
     "task": "text-to-image",
     "label": "SDXL Turbo",
@@ -62,21 +120,6 @@
     "is_default_candidate": true
   },
   {
-    "id": "svd-xt",
-    "task": "text-to-video",
-    "label": "Stable Video Diffusion XT",
-    "engine": "comfyui",
-    "min_vram_gb": 10,
-    "recommended_vram_gb": 12,
-    "os_support": ["windows", "mac", "linux"],
-    "disk_gb": 10,
-    "content_policy": "moderate",
-    "download_url": "https://huggingface.co/stabilityai/stable-video-diffusion-img2vid-xt/resolve/main/svd_xt.safetensors",
-    "checksum": "sha256:b2652c23d64a1da5f14d55011b9b6dce55f2e72e395719f1cd1f8a079b00a451",
-    "quality_tier": 3,
-    "is_default_candidate": true
-  },
-  {
     "id": "animatediff-lightning",
     "task": "text-to-video",
     "label": "AnimateDiff Lightning",
@@ -109,6 +152,22 @@
     "sampling_preset": { "steps": 20, "cfg": 7, "sampler_name": "euler", "scheduler": "normal" }
   },
   {
+    "id": "ace-step-1.5-turbo",
+    "task": "text-to-music",
+    "label": "ACE-Step 1.5 Turbo",
+    "engine": "comfyui",
+    "workflow": "ace-step-1.5",
+    "min_vram_gb": 6,
+    "recommended_vram_gb": 8,
+    "os_support": ["windows", "mac", "linux"],
+    "disk_gb": 10,
+    "content_policy": "moderate",
+    "download_url": "https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/checkpoints/ace_step_1.5_turbo_aio.safetensors",
+    "checksum": "sha256:67b0f43aa5c51c840bd0228e6a935d8ff416ec87e5df2fc0637da17a561252bc",
+    "quality_tier": 4,
+    "is_default_candidate": true
+  },
+  {
     "id": "musicgen-medium",
     "task": "text-to-music",
     "label": "MusicGen Medium",
@@ -137,6 +196,35 @@
     "checksum": "sha256:1bdc99d43eb6c775967df24b65b0a9f847c0907e95664698d93b5a1c35f5090d",
     "quality_tier": 2,
     "is_default_candidate": true
+  },
+  {
+    "id": "flux2-klein-4b-img2img",
+    "task": "image-to-image",
+    "label": "FLUX.2 Klein 4B (edit by instruction)",
+    "engine": "comfyui",
+    "workflow": "flux2-klein",
+    "min_vram_gb": 6,
+    "recommended_vram_gb": 8,
+    "os_support": ["windows", "mac", "linux"],
+    "disk_gb": 10,
+    "content_policy": "moderate",
+    "download_url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-4b-fp8/resolve/main/flux-2-klein-4b-fp8.safetensors",
+    "checksum": "sha256:97ed34fe0567e436200f2faee3939b88f2b5d99f8af2a4dc16532c4245c0ccb6",
+    "components": [
+      {
+        "role": "text_encoder",
+        "download_url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b_fp8_mixed.safetensors",
+        "checksum": "sha256:72450b19758172c5a7273cf7de729d1c17e7f434a104a00167624cba94f68f15"
+      },
+      {
+        "role": "vae",
+        "download_url": "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors",
+        "checksum": "sha256:d64f3a68e1cc4f9f4e29b6e0da38a0204fe9a49f2d4053f0ec1fa1ca02f9c4b5"
+      }
+    ],
+    "quality_tier": 5,
+    "is_default_candidate": true,
+    "sampling_preset": { "steps": 4, "cfg": 1.0, "sampler_name": "euler", "width": 1024, "height": 1024 }
   },
   {
     "id": "sdxl-turbo-img2img",

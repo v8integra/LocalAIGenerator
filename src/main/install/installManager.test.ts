@@ -126,3 +126,32 @@ test("does not mark the model ready when the smoke test fails", async () => {
 
   await server.close();
 });
+
+test("downloads an entry's components under their own filenames, skipping ones already present", async () => {
+  const body = crypto.randomBytes(16 * 1024);
+  const checksum = `sha256:${crypto.createHash("sha256").update(body).digest("hex")}`;
+  const server = new TestHttpServer(body);
+  const url = await server.listen();
+  const { modelsDir, venvDir } = await tmpDirs();
+
+  // Pretend another entry already installed the shared VAE — a wrong-content
+  // file proves it's reused rather than re-downloaded over.
+  await fs.mkdir(modelsDir, { recursive: true });
+  await fs.writeFile(path.join(modelsDir, "shared_vae.safetensors"), "already here");
+
+  const entry = makeEntry({
+    download_url: `${url}unet.safetensors`,
+    checksum,
+    components: [
+      { role: "text_encoder", download_url: `${url}split_files/text_encoders/qwen.safetensors`, checksum },
+      { role: "vae", download_url: `${url}shared_vae.safetensors`, checksum }
+    ]
+  });
+
+  await installModel(entry, { modelsDir, venvDir, pinnedDependencies: [], smokeTest: async () => {} });
+
+  assert.deepEqual(await fs.readFile(path.join(modelsDir, "qwen.safetensors")), body);
+  assert.equal(await fs.readFile(path.join(modelsDir, "shared_vae.safetensors"), "utf-8"), "already here");
+
+  await server.close();
+});

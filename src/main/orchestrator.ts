@@ -4,7 +4,7 @@ import type { AppPaths } from "./appPaths";
 import { HardwareProfile } from "./hardware/detectHardware";
 import { InstallEvent, installModel } from "./install/installManager";
 import { packagesImportable, pythonBinPath, venvExists } from "./install/venvManager";
-import { hasRealDownload, isModelInstalled, modelFilePath } from "./registry/modelPaths";
+import { componentFilename, hasRealDownload, isModelInstalled, modelFilePath } from "./registry/modelPaths";
 import { ModelSelection, selectModelForTask } from "./registry/selectModel";
 import { ModelEntry, TaskType } from "./registry/types";
 import { SettingsStore } from "./settings";
@@ -12,7 +12,7 @@ import { AudioEngineSetupOptions, setupAudioEngine } from "./audio/audioEngineSe
 import { GenerateMusicResult, TextToMusicInputs, generateMusic } from "./audio/generateMusic";
 import { prepareModelDir } from "./audio/prepareModelDir";
 import { ComfyProcessHandle, startComfyProcess } from "./comfyui/comfyProcess";
-import { EngineSetupOptions, setupComfyEngine } from "./comfyui/engineSetup";
+import { EngineSetupOptions, setupComfyEngine, writeExtraModelPaths } from "./comfyui/engineSetup";
 import { GenerateResult, ImageToImageInputs, TextToImageInputs, TextToVideoInputs, generate } from "./comfyui/generate";
 import { stageInputImage } from "./comfyui/stageInputImage";
 
@@ -383,8 +383,23 @@ export class Orchestrator {
       );
     }
 
+    // Rewritten on every launch, not just at engine setup, so engines set up
+    // before a new model folder key was added (e.g. diffusion_models for the
+    // split-file families) pick it up without a reinstall.
+    await writeExtraModelPaths(engineDir, this.options.paths.modelsDir);
+
     const { command, args } = this.resolveComfyLaunchCommand(venvDir, mainPyPath, this.comfyPort);
-    this.comfyHandle = await startComfyProcess({ command, args, cwd: engineDir, port: this.comfyPort });
+    // A cold first launch (custom nodes importing, nothing in the disk cache
+    // yet) was seen to overrun the 30s default on a real 8GB machine — the
+    // very first Z-Image generation failed with a startup timeout, then
+    // worked on retry.
+    this.comfyHandle = await startComfyProcess({
+      command,
+      args,
+      cwd: engineDir,
+      port: this.comfyPort,
+      readyTimeoutMs: 120000
+    });
     this.comfyHandleCheckpointFilename = checkpointFilename;
     return `http://127.0.0.1:${this.comfyPort}/`;
   }
@@ -409,6 +424,8 @@ export class Orchestrator {
     return generate("text-to-image", modelId, { ...samplingPresetInputs(entry), ...inputs }, {
       comfyBaseUrl,
       resolveCheckpointFilename: () => checkpointFilename,
+      workflow: entry.workflow,
+      resolveComponentFilename: (role) => componentFilename(entry, role),
       outputDir: this.options.paths.tempDir
     });
   }
@@ -474,6 +491,8 @@ export class Orchestrator {
     return generate("image-to-image", modelId, { ...samplingPresetInputs(entry), ...inputs }, {
       comfyBaseUrl,
       resolveCheckpointFilename: () => checkpointFilename,
+      workflow: entry.workflow,
+      resolveComponentFilename: (role) => componentFilename(entry, role),
       stageInputImage: (sourceImagePath) => stageInputImage(sourceImagePath, engineDir),
       outputDir: this.options.paths.tempDir
     });
@@ -526,10 +545,29 @@ export class Orchestrator {
   }
 
   async generateMusic(modelId: string, inputs: TextToMusicInputs): Promise<GenerateMusicResult> {
+    let entry: ModelEntry;
     try {
-      this.findEntry(modelId);
+      entry = this.findEntry(modelId);
     } catch (err) {
       return { status: "error", error: (err as Error).message };
+    }
+
+    // ACE-Step runs inside ComfyUI like the image models; only MusicGen
+    // needs the separate audio engine below.
+    if (entry.engine === "comfyui") {
+      const checkpointFilename = path.basename(modelFilePath(this.options.paths.modelsDir, entry));
+      let comfyBaseUrl: string;
+      try {
+        comfyBaseUrl = await this.ensureComfyRunning(checkpointFilename);
+      } catch (err) {
+        return { status: "error", error: (err as Error).message };
+      }
+      return generate("text-to-music", modelId, inputs, {
+        comfyBaseUrl,
+        resolveCheckpointFilename: () => checkpointFilename,
+        workflow: entry.workflow,
+        outputDir: this.options.paths.tempDir
+      });
     }
 
     let audioBaseUrl: string;

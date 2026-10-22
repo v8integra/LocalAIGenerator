@@ -138,3 +138,33 @@ test("AnimateDiff Lightning and v2 have distinctly different sampling_presets, m
   assert.ok(v2!.sampling_preset!.steps >= 15);
   assert.ok(v2!.sampling_preset!.cfg >= 5);
 });
+
+test("rejects a component with an unknown role", async () => {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "registry-test-"));
+  const badPath = path.join(tmpDir, "models.json");
+  await fs.writeFile(
+    badPath,
+    JSON.stringify([validEntry({ components: [{ role: "lora", download_url: "https://example.com/x.safetensors", checksum: "sha256:abc" }] })])
+  );
+
+  await assert.rejects(() => loadRegistryFromPath(badPath), /missing or invalid "components\[0\]\.role" field/);
+});
+
+test("rejects an unknown workflow family", async () => {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "registry-test-"));
+  const badPath = path.join(tmpDir, "models.json");
+  await fs.writeFile(badPath, JSON.stringify([validEntry({ workflow: "made-up" })]));
+
+  await assert.rejects(() => loadRegistryFromPath(badPath), /missing or invalid "workflow" field/);
+});
+
+test("bundled split-file image models ship both a text encoder and a VAE component", async () => {
+  const entries = await loadBundledRegistry();
+  const splitFile = entries.filter((e) => e.workflow === "z-image" || e.workflow === "flux2-klein");
+
+  assert.ok(splitFile.length >= 3);
+  for (const entry of splitFile) {
+    const roles = (entry.components ?? []).map((c) => c.role).sort();
+    assert.deepEqual(roles, ["text_encoder", "vae"], `${entry.id} components`);
+  }
+});

@@ -19,6 +19,7 @@ interface ModelOption {
   downloadAvailable: boolean;
   min_vram_gb: number;
   content_policy: "strict" | "moderate" | "unrestricted";
+  workflow?: string;
 }
 
 interface ModelSelectionPayload {
@@ -56,7 +57,7 @@ interface Window {
     generate(
       taskType: string,
       modelId: string,
-      inputs: { prompt: string; durationSeconds?: number; sourceImagePath?: string }
+      inputs: { prompt: string; durationSeconds?: number; sourceImagePath?: string; lyrics?: string }
     ): Promise<GenerateResult>;
     saveOutput(sourcePath: string, taskType: string): Promise<{ saved: boolean; path?: string; error?: string }>;
   };
@@ -69,6 +70,8 @@ let selectedModelId: string | null = null;
 let currentPrompt = "";
 /** Same reasoning as currentPrompt — without this, the duration slider silently snapped back to its hardcoded default every time Generate re-rendered the panel. */
 let currentDurationSeconds = 5;
+/** Same reasoning as currentPrompt. Only shown for models that can sing (ACE-Step). */
+let currentLyrics = "";
 let installProgress: InstallProgress | null = null;
 let installError: string | null = null;
 let isGenerating = false;
@@ -102,6 +105,7 @@ async function selectTask(taskId: string): Promise<void> {
   saveMessage = null;
   currentPrompt = "";
   currentDurationSeconds = 5;
+  currentLyrics = "";
   unsubscribeInstallProgress?.();
   unsubscribeInstallProgress = null;
 
@@ -291,6 +295,20 @@ function renderLeftPanel(): void {
   promptGroup.appendChild(clearPromptButton);
   panel.appendChild(promptGroup);
 
+  if (findSelectedOption()?.workflow === "ace-step-1.5") {
+    const lyricsGroup = document.createElement("div");
+    lyricsGroup.className = "field-group";
+    lyricsGroup.innerHTML = `
+      <label for="lyrics-input">Lyrics (optional — leave empty for an instrumental)</label>
+      <textarea id="lyrics-input" placeholder="[Verse]&#10;...">${escapeHtml(currentLyrics)}</textarea>
+    `;
+    const lyricsTextarea = lyricsGroup.querySelector("#lyrics-input") as HTMLTextAreaElement;
+    lyricsTextarea.addEventListener("input", () => {
+      currentLyrics = lyricsTextarea.value;
+    });
+    panel.appendChild(lyricsGroup);
+  }
+
   if (task.hasDurationInput) {
     const durationGroup = document.createElement("div");
     durationGroup.className = "field-group";
@@ -427,7 +445,8 @@ async function handleGenerate(): Promise<void> {
   renderLeftPanel();
   renderRightPanel();
 
-  lastResult = await window.api.generate(taskId, modelId, { prompt, durationSeconds, sourceImagePath });
+  const lyrics = document.getElementById("lyrics-input") ? currentLyrics : undefined;
+  lastResult = await window.api.generate(taskId, modelId, { prompt, durationSeconds, sourceImagePath, lyrics });
   lastGeneratedModelByTask[taskId] = modelId;
 
   isGenerating = false;

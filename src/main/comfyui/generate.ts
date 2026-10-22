@@ -1,12 +1,17 @@
 import * as fs from "fs/promises";
 import * as path from "path";
+import { TextToMusicInputs } from "../audio/generateMusic";
 import { buildOutputFilename } from "../outputFilename";
+import { ComponentRole, WorkflowFamily } from "../registry/types";
+import { SAVE_AUDIO_NODE_ID, buildAceStepWorkflow } from "./buildAceStepWorkflow";
+import { buildFlux2KleinWorkflow } from "./buildFlux2KleinWorkflow";
 import { buildImg2ImgWorkflow } from "./buildImg2ImgWorkflow";
 import { buildTxt2ImgWorkflow, SAVE_IMAGE_NODE_ID } from "./buildTxt2ImgWorkflow";
 import { buildTxt2VideoWorkflow, VIDEO_COMBINE_NODE_ID } from "./buildTxt2VideoWorkflow";
+import { buildZImageWorkflow } from "./buildZImageWorkflow";
 import { HistoryEntry, fetchImage, queuePrompt, waitForCompletion } from "./comfyClient";
 
-/** text-to-music is a separate engine (src/main/audio/) — only the three ComfyUI-based tasks are handled here. */
+/** text-to-music is handled here only for ComfyUI-based music models (ACE-Step); MusicGen runs on its own engine (src/main/audio/). */
 export type TaskType = "text-to-image" | "text-to-video" | "text-to-music" | "image-to-image";
 
 export interface TextToImageInputs {
@@ -69,8 +74,12 @@ export type GenerateResult = { status: "success"; output_path: string } | { stat
 export interface GenerateContext {
   /** Base URL of the running ComfyUI subprocess, e.g. http://127.0.0.1:8188/ */
   comfyBaseUrl: string;
-  /** Maps a registry model_id to the checkpoint filename ComfyUI should load. */
+  /** Maps a registry model_id to the checkpoint filename ComfyUI should load (the bare diffusion model, for non-"checkpoint" families). */
   resolveCheckpointFilename: (modelId: string) => string;
+  /** Which graph to build — absent means the classic single-file "checkpoint" family. */
+  workflow?: WorkflowFamily;
+  /** Split-file families only — the text encoder / VAE filename their loader nodes should reference. */
+  resolveComponentFilename?: (role: ComponentRole) => string;
   /** text-to-video only — the AnimateDiff motion module filename to pair with the checkpoint. */
   resolveMotionModelFilename?: (modelId: string) => string;
   /** image-to-image only — copies the source image into ComfyUI's input/ dir and returns the filename LoadImage should reference. */
@@ -85,10 +94,11 @@ export interface GenerateContext {
 export async function generate(
   taskType: TaskType,
   modelId: string,
-  inputs: TextToImageInputs & TextToVideoInputs & ImageToImageInputs,
+  inputs: TextToImageInputs & TextToVideoInputs & ImageToImageInputs & Partial<TextToMusicInputs>,
   context: GenerateContext
 ): Promise<GenerateResult> {
   if (taskType === "text-to-image") return generateImage(modelId, inputs, context);
+  if (taskType === "text-to-music") return generateMusicTrack(modelId, inputs, context);
   if (taskType === "text-to-video") return generateVideo(modelId, inputs, context);
   if (taskType === "image-to-image") return generateImageToImage(modelId, inputs, context);
   return { status: "error", error: `Task type "${taskType}" is not implemented yet` };
@@ -97,7 +107,14 @@ export async function generate(
 async function generateImage(modelId: string, inputs: TextToImageInputs, context: GenerateContext): Promise<GenerateResult> {
   try {
     const checkpointFilename = context.resolveCheckpointFilename(modelId);
-    const workflow = buildTxt2ImgWorkflow({ checkpointFilename, ...inputs });
+    let workflow: Record<string, unknown>;
+    if (context.workflow === "z-image") {
+      workflow = buildZImageWorkflow({ ...inputs, ...splitFileNames(checkpointFilename, context) });
+    } else if (context.workflow === "flux2-klein") {
+      workflow = buildFlux2KleinWorkflow({ ...inputs, ...splitFileNames(checkpointFilename, context) });
+    } else {
+      workflow = buildTxt2ImgWorkflow({ checkpointFilename, ...inputs });
+    }
 
     const entry = await runWorkflow(workflow, context);
     if ("error" in entry) return entry;
@@ -168,7 +185,10 @@ async function generateImageToImage(
     }
     const checkpointFilename = context.resolveCheckpointFilename(modelId);
     const imageFilename = await context.stageInputImage(inputs.sourceImagePath);
-    const workflow = buildImg2ImgWorkflow({ checkpointFilename, imageFilename, ...inputs });
+    const workflow =
+      context.workflow === "flux2-klein"
+        ? buildFlux2KleinWorkflow({ ...inputs, ...splitFileNames(checkpointFilename, context), imageFilename })
+        : buildImg2ImgWorkflow({ checkpointFilename, imageFilename, ...inputs });
 
     const entry = await runWorkflow(workflow, context);
     if ("error" in entry) return entry;
@@ -188,6 +208,58 @@ async function generateImageToImage(
   } catch (err) {
     return { status: "error", error: (err as Error).message };
   }
+}
+
+async function generateMusicTrack(
+  modelId: string,
+  inputs: Partial<TextToMusicInputs>,
+  context: GenerateContext
+): Promise<GenerateResult> {
+  try {
+    if (context.workflow !== "ace-step-1.5") {
+      return { status: "error", error: `Model "${modelId}" isn't a ComfyUI music model` };
+    }
+    const checkpointFilename = context.resolveCheckpointFilename(modelId);
+    const workflow = buildAceStepWorkflow({
+      checkpointFilename,
+      prompt: inputs.prompt ?? "",
+      lyrics: inputs.lyrics?.trim() || undefined,
+      durationSeconds: inputs.durationSeconds
+    });
+
+    const entry = await runWorkflow(workflow, context);
+    if ("error" in entry) return entry;
+
+    const audio = entry.outputs[SAVE_AUDIO_NODE_ID]?.audio?.[0];
+    if (!audio) {
+      return { status: "error", error: "ComfyUI reported success but produced no output audio" };
+    }
+
+    const audioBytes = await fetchImage(context.comfyBaseUrl, audio);
+    await fs.mkdir(context.outputDir, { recursive: true });
+    const ext = path.extname(audio.filename) || ".flac";
+    const outputPath = path.join(context.outputDir, buildOutputFilename("music", ext));
+    await fs.writeFile(outputPath, audioBytes);
+
+    return { status: "success", output_path: outputPath };
+  } catch (err) {
+    return { status: "error", error: (err as Error).message };
+  }
+}
+
+/** Loader filenames for the split-file families, whose "checkpoint" is the bare diffusion model. */
+function splitFileNames(
+  diffusionModelFilename: string,
+  context: GenerateContext
+): { diffusionModelFilename: string; textEncoderFilename: string; vaeFilename: string } {
+  if (!context.resolveComponentFilename) {
+    throw new Error(`No component resolver configured for the "${context.workflow}" workflow`);
+  }
+  return {
+    diffusionModelFilename,
+    textEncoderFilename: context.resolveComponentFilename("text_encoder"),
+    vaeFilename: context.resolveComponentFilename("vae")
+  };
 }
 
 /** Submits a workflow and waits for it, normalizing ComfyUI's success/failure into our result shape. */

@@ -23,6 +23,28 @@ export interface SamplingPreset {
   height?: number;
 }
 
+/**
+ * Which ComfyUI graph a model needs. "checkpoint" (the default when absent)
+ * is the classic single-file SD1.x/SDXL layout that CheckpointLoaderSimple
+ * loads whole. The newer families ship as a bare diffusion model plus a
+ * separate text encoder and VAE (see ModelComponent), each with its own
+ * sampling setup taken from ComfyUI's official workflow templates.
+ */
+export type WorkflowFamily = "checkpoint" | "z-image" | "flux2-klein" | "ace-step-1.5";
+export type ComponentRole = "text_encoder" | "vae";
+
+/**
+ * An extra weights file a model needs alongside its main download_url.
+ * Saved under its original Hugging Face filename rather than per-entry, so
+ * entries that share one (Z-Image and FLUX.2 Klein both use the same
+ * Qwen3-4B text encoder) download it only once.
+ */
+export interface ModelComponent {
+  role: ComponentRole;
+  download_url: string;
+  checksum: string;
+}
+
 export interface ModelEntry {
   id: string;
   task: TaskType;
@@ -38,4 +60,6 @@ export interface ModelEntry {
   quality_tier: number;
   is_default_candidate: boolean;
   sampling_preset?: SamplingPreset;
+  workflow?: WorkflowFamily;
+  components?: ModelComponent[];
 }

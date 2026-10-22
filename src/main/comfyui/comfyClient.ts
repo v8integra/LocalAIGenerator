@@ -39,8 +39,8 @@ export interface HistoryStatus {
 }
 
 export interface HistoryEntry {
-  /** images: SaveImage's output key; gifs: VHS_VideoCombine's — both fetch identically via /view. */
-  outputs: Record<string, { images?: HistoryImage[]; gifs?: HistoryImage[] }>;
+  /** images: SaveImage's output key; gifs: VHS_VideoCombine's; audio: SaveAudio's — all fetch identically via /view. */
+  outputs: Record<string, { images?: HistoryImage[]; gifs?: HistoryImage[]; audio?: HistoryImage[] }>;
   status: HistoryStatus | null;
 }
 

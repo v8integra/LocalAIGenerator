@@ -1,11 +1,13 @@
 import * as fs from "fs/promises";
 import * as path from "path";
-import { ModelEntry, TaskType, EngineType, ContentPolicy, OsSupport, SamplingPreset } from "./types";
+import { ModelEntry, TaskType, EngineType, ContentPolicy, OsSupport, SamplingPreset, WorkflowFamily, ComponentRole } from "./types";
 
 const TASK_TYPES: TaskType[] = ["text-to-image", "text-to-video", "text-to-music", "image-to-image"];
 const ENGINE_TYPES: EngineType[] = ["comfyui", "python"];
 const CONTENT_POLICIES: ContentPolicy[] = ["strict", "moderate", "unrestricted"];
 const OS_VALUES: OsSupport[] = ["windows", "mac", "linux"];
+const WORKFLOW_FAMILIES: WorkflowFamily[] = ["checkpoint", "z-image", "flux2-klein", "ace-step-1.5"];
+const COMPONENT_ROLES: ComponentRole[] = ["text_encoder", "vae"];
 
 function fail(entry: any, field: string, index: number): never {
   const id = typeof entry?.id === "string" ? entry.id : "unknown";
@@ -29,7 +31,19 @@ function validateEntry(entry: any, index: number): ModelEntry {
   if (typeof entry.quality_tier !== "number") fail(entry, "quality_tier", index);
   if (typeof entry.is_default_candidate !== "boolean") fail(entry, "is_default_candidate", index);
   if (entry.sampling_preset !== undefined) validateSamplingPreset(entry, entry.sampling_preset, index);
+  if (entry.workflow !== undefined && !WORKFLOW_FAMILIES.includes(entry.workflow)) fail(entry, "workflow", index);
+  if (entry.components !== undefined) validateComponents(entry, entry.components, index);
   return entry as ModelEntry;
+}
+
+function validateComponents(entry: any, components: any, index: number): void {
+  if (!Array.isArray(components)) fail(entry, "components", index);
+  components.forEach((component: any, i: number) => {
+    if (typeof component !== "object" || component === null) fail(entry, `components[${i}]`, index);
+    if (!COMPONENT_ROLES.includes(component.role)) fail(entry, `components[${i}].role`, index);
+    if (typeof component.download_url !== "string") fail(entry, `components[${i}].download_url`, index);
+    if (typeof component.checksum !== "string") fail(entry, `components[${i}].checksum`, index);
+  });
 }
 
 function validateSamplingPreset(entry: any, preset: any, index: number): asserts preset is SamplingPreset {

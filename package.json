@@ -1,6 +1,6 @@
 {
   "name": "local-ai-studio",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Desktop app for local image, video, and music generation without manual Python/CUDA setup.",
   "main": "dist/main/main.js",
   "private": true,
